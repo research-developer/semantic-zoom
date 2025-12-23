@@ -102,11 +102,25 @@ def _generate_prompt_id() -> str:
     return f"prompt_{uuid.uuid4().hex[:12]}"
 
 
-def create_correction_prompt(error: GrammarError) -> CorrectionPrompt:
+def _generate_deterministic_prompt_id(error: GrammarError) -> str:
+    """Generate a deterministic prompt ID based on error position.
+
+    This ensures the same error always produces the same prompt ID,
+    enabling stored responses to be retrieved correctly.
+    """
+    return f"prompt_error_{error.start_char}_{error.end_char}"
+
+
+def create_correction_prompt(
+    error: GrammarError,
+    deterministic: bool = False,
+) -> CorrectionPrompt:
     """Create a prompt for a grammar error.
 
     Args:
         error: The grammar error to create a prompt for
+        deterministic: If True, use deterministic ID based on error position.
+            This is required for apply_stored_responses to work correctly.
 
     Returns:
         CorrectionPrompt with options for accept/ignore/alternative
@@ -139,8 +153,15 @@ def create_correction_prompt(error: GrammarError) -> CorrectionPrompt:
     if error.suggestion:
         message += f"\nSuggestion: '{error.suggestion}'"
 
+    # Use deterministic ID for stored response matching
+    prompt_id = (
+        _generate_deterministic_prompt_id(error)
+        if deterministic
+        else _generate_prompt_id()
+    )
+
     return CorrectionPrompt(
-        prompt_id=_generate_prompt_id(),
+        prompt_id=prompt_id,
         error=error,
         options=options,
         message=message,
@@ -284,26 +305,21 @@ def apply_stored_responses(
 
     Returns:
         Text with all accepted corrections applied
-    """
-    # Create prompts for lookup
-    prompt_map = {}
-    for error in errors:
-        prompt = create_correction_prompt(error)
-        # Store with a consistent ID based on error position
-        consistent_id = f"error_{error.start_char}_{error.end_char}"
-        prompt_map[consistent_id] = (error, prompt)
 
+    Note:
+        Prompts must be created with deterministic=True for this to work.
+        The deterministic ID is based on error position (start_char, end_char).
+    """
     # Sort errors by position (reverse to apply from end)
     sorted_errors = sorted(errors, key=lambda e: e.start_char, reverse=True)
 
     result = text
     for error in sorted_errors:
-        consistent_id = f"error_{error.start_char}_{error.end_char}"
-        if consistent_id in prompt_map:
-            _, prompt = prompt_map[consistent_id]
-            response = store.get(prompt.prompt_id)
-            if response:
-                result = apply_response(result, error, response)
+        # Use deterministic prompt ID to match stored responses
+        prompt = create_correction_prompt(error, deterministic=True)
+        response = store.get(prompt.prompt_id)
+        if response:
+            result = apply_response(result, error, response)
 
     return result
 
