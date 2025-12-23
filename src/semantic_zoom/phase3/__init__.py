@@ -25,6 +25,12 @@ from semantic_zoom.phase3.discourse_adverbs import (
     identify_discourse_adverbs,
     map_to_inter_frame_relation,
 )
+from semantic_zoom.phase3.integration import (
+    MorphismToken,
+    Phase3Processor,
+    Phase3Result,
+    process_tokens_phase3,
+)
 
 __all__ = [
     # NSM-43: Preposition symbols
@@ -44,4 +50,9 @@ __all__ = [
     "InterFrameMorphism",
     "identify_discourse_adverbs",
     "map_to_inter_frame_relation",
+    # Integration (Phase 2 → Phase 3)
+    "MorphismToken",
+    "Phase3Processor",
+    "Phase3Result",
+    "process_tokens_phase3",
 ]
