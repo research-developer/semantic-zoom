@@ -197,3 +197,28 @@ class TestUnknownPrepositions:
         result_upper = map_preposition("IN")
         result_mixed = map_preposition("In")
         assert result_lower.symbol == result_upper.symbol == result_mixed.symbol
+
+
+class TestIdentityMorphism:
+    """Test identity morphism (categorical requirement)."""
+
+    def test_identity_symbol_exists(self):
+        """IDENTITY symbol (ε) exists for reflexive relations."""
+        assert CategoricalSymbol.IDENTITY.value == "ε"
+
+    def test_as_maps_to_identity(self):
+        """'as' preposition maps to IDENTITY (X as X)."""
+        result = map_preposition("as")
+        assert result.symbol == CategoricalSymbol.IDENTITY
+        assert result.saturated is True
+        assert result.is_dual_citizen is False
+
+    def test_qua_maps_to_identity(self):
+        """'qua' preposition maps to IDENTITY (X qua X)."""
+        result = map_preposition("qua")
+        assert result.symbol == CategoricalSymbol.IDENTITY
+
+    def test_identity_is_static(self):
+        """Identity morphisms have static motion."""
+        result = map_preposition("as")
+        assert result.state.motion == "static"

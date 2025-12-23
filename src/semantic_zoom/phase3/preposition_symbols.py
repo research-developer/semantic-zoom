@@ -52,6 +52,9 @@ class CategoricalSymbol(Enum):
     MANNER_LIKE = "∼"  # Manner (like X)
     INSTRUMENT_WITH = "⊗"  # Instrument (with a hammer)
 
+    # Identity morphism (categorical requirement)
+    IDENTITY = "ε"  # Reflexive/no-change relation (X is X, as X)
+
     # Generic fallback
     GENERIC = "•"
 
@@ -174,6 +177,11 @@ _TEMPORAL: dict[str, tuple[CategoricalSymbol, SymbolState]] = {
     "since": (CategoricalSymbol.TEMPORAL_AFTER, SymbolState()),
 }
 
+_IDENTITY: dict[str, tuple[CategoricalSymbol, SymbolState]] = {
+    "as": (CategoricalSymbol.IDENTITY, SymbolState()),  # X as X, X qua X
+    "qua": (CategoricalSymbol.IDENTITY, SymbolState()),  # Formal identity
+}
+
 # Dual-citizenship prepositions (require context for resolution)
 _DUAL_CITIZENS: dict[str, tuple[list[CategoricalSymbol], SymbolState]] = {
     "at": (
@@ -200,6 +208,7 @@ _SIMPLE_MAPPINGS: dict[str, tuple[CategoricalSymbol, SymbolState]] = {
     **_SPATIAL_UNDER,
     **_ACCOMPANIMENT,
     **_TEMPORAL,
+    **_IDENTITY,
 }
 
 
