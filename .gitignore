@@ -56,3 +56,4 @@ models/
 # Data artifacts
 *.pkl
 *.pickle
+.DS_Store
