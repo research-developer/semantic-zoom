@@ -190,6 +190,55 @@ spaCy tokenization → Phase 1 ParsedToken → Phase 2 Token (with classificatio
 
 ---
 
+## Phase 6 Copula Issue (Cross-Phase)
+
+### Issue Identified
+During audit, discovered that copular "is/be" verbs were being overly targeted as seed words in Phase 6 subgraph extraction. Root cause:
+
+1. In copular sentences ("The cat is on the mat"), spaCy correctly identifies "is" as ROOT
+2. The `_find_clause_root` method returns "is" as the clause root
+3. N-hop expansion from any content word always pulls in "is" (it's the syntactic head)
+
+### Linguistic Analysis
+Copular constructions have a syntactic/semantic mismatch:
+- **Syntactically:** "is" is the main verb (ROOT)
+- **Semantically:** "is" is a linking verb with minimal semantic content
+
+| Sentence Type | Example | Syntactic ROOT | Semantic Focus |
+|--------------|---------|----------------|----------------|
+| Predicate Adjective | "The cat is happy" | is | happy |
+| Predicate Nominal | "John is a doctor" | is | doctor |
+| Predicate Locative | "The book is on the shelf" | is | on the shelf |
+| Progressive | "She was running" | running | running |
+
+### Fix Implemented
+Added `skip_copulas` parameter to `SubgraphExtractor`:
+
+```python
+# Option 1: Instance-level setting
+extractor = SubgraphExtractor(skip_copulas=True)
+
+# Option 2: Per-call override
+extractor.extract(tokens, seeds, zoom_level=1, skip_copulas=True)
+```
+
+**Behavior:**
+- Copulas (AUX + ROOT + form of "be") are treated as "transparent"
+- Expansion passes through copulas to reach content words
+- Copulas are excluded from final result
+- Auxiliaries in progressives ("was running") are preserved
+
+### Test Coverage
+Added 6 tests in `TestCopulaSkipping`:
+- Default backward compatibility
+- Copula exclusion in predicate constructions
+- Sibling connectivity through transparent copulas
+- Auxiliary preservation in progressive aspect
+- Per-call override functionality
+- Predicate nominal handling
+
+---
+
 ## Conclusion
 
 Phase 2 implementation is **linguistically sound** and follows established grammatical frameworks correctly. The code demonstrates careful attention to:

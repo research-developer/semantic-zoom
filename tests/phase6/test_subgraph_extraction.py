@@ -230,16 +230,144 @@ class TestSubgraphResultAttributes:
         parser = DependencyParser()
         selector = SeedSelector()
         extractor = SubgraphExtractor()
-        
+
         text = "Hello world."
         tokens = tokenizer.tokenize(text)
         parsed = parser.parse(tokens)
-        
+
         seed = selector.select_range(parsed, start_id=0, end_id=0)
         selector.add_seed(seed)
-        
+
         result = extractor.extract(parsed, selector.seeds, zoom_level=1)
-        
+
         assert hasattr(result, 'word_ids')
         assert hasattr(result, 'zoom_level')
         assert hasattr(result, 'seed_ids')
+
+
+class TestCopulaSkipping:
+    """Test optional copula/auxiliary skipping for semantic focus."""
+
+    def test_skip_copulas_false_by_default(self):
+        """skip_copulas should be False by default for backward compat."""
+        extractor = SubgraphExtractor()
+        assert extractor.skip_copulas is False
+
+    def test_skip_copulas_excludes_is_in_copular_sentence(self):
+        """With skip_copulas=True, copula 'is' should be excluded."""
+        tokenizer = Tokenizer()
+        parser = DependencyParser()
+        selector = SeedSelector()
+
+        text = "The cat is on the mat."
+        tokens = tokenizer.tokenize(text)
+        parsed = parser.parse(tokens)
+
+        # Select "cat"
+        cat_id = next(t.id for t in parsed if t.text == "cat")
+        seed = selector.select_range(parsed, start_id=cat_id, end_id=cat_id)
+        selector.add_seed(seed)
+
+        # Without skip_copulas
+        extractor_normal = SubgraphExtractor(skip_copulas=False)
+        result_normal = extractor_normal.extract(parsed, selector.seeds, zoom_level=1)
+        words_normal = [parsed[i].text for i in result_normal.word_ids]
+        assert "is" in words_normal
+
+        # With skip_copulas
+        extractor_skip = SubgraphExtractor(skip_copulas=True)
+        result_skip = extractor_skip.extract(parsed, selector.seeds, zoom_level=1)
+        words_skip = [parsed[i].text for i in result_skip.word_ids]
+        assert "is" not in words_skip
+        assert "cat" in words_skip
+
+    def test_skip_copulas_connects_through_is(self):
+        """With skip_copulas=True, siblings through copula should connect."""
+        tokenizer = Tokenizer()
+        parser = DependencyParser()
+        selector = SeedSelector()
+
+        text = "The cat is happy."
+        tokens = tokenizer.tokenize(text)
+        parsed = parser.parse(tokens)
+
+        # Select "cat" - should reach "happy" through "is"
+        cat_id = next(t.id for t in parsed if t.text == "cat")
+        seed = selector.select_range(parsed, start_id=cat_id, end_id=cat_id)
+        selector.add_seed(seed)
+
+        extractor = SubgraphExtractor(skip_copulas=True)
+        result = extractor.extract(parsed, selector.seeds, zoom_level=1)
+        words = [parsed[i].text for i in result.word_ids]
+
+        # Should include "happy" as sibling through transparent "is"
+        assert "cat" in words
+        assert "is" not in words
+        # "happy" should be reachable as sibling
+        assert "happy" in words or "." in words
+
+    def test_skip_copulas_preserves_aux_in_progressive(self):
+        """Auxiliary 'was' in progressives should NOT be skipped."""
+        tokenizer = Tokenizer()
+        parser = DependencyParser()
+        selector = SeedSelector()
+
+        text = "She was running quickly."
+        tokens = tokenizer.tokenize(text)
+        parsed = parser.parse(tokens)
+
+        # Select "running" - "was" is aux, not ROOT, so should be included
+        run_id = next(t.id for t in parsed if t.text == "running")
+        seed = selector.select_range(parsed, start_id=run_id, end_id=run_id)
+        selector.add_seed(seed)
+
+        extractor = SubgraphExtractor(skip_copulas=True)
+        result = extractor.extract(parsed, selector.seeds, zoom_level=1)
+        words = [parsed[i].text for i in result.word_ids]
+
+        # "was" should be included (it's aux, not copular ROOT)
+        assert "was" in words
+        assert "running" in words
+
+    def test_skip_copulas_per_call_override(self):
+        """skip_copulas can be overridden per extract() call."""
+        tokenizer = Tokenizer()
+        parser = DependencyParser()
+        selector = SeedSelector()
+
+        text = "The book is here."
+        tokens = tokenizer.tokenize(text)
+        parsed = parser.parse(tokens)
+
+        book_id = next(t.id for t in parsed if t.text == "book")
+        seed = selector.select_range(parsed, start_id=book_id, end_id=book_id)
+        selector.add_seed(seed)
+
+        # Default skip_copulas=False, but override to True
+        extractor = SubgraphExtractor(skip_copulas=False)
+        result = extractor.extract(parsed, selector.seeds, zoom_level=1, skip_copulas=True)
+        words = [parsed[i].text for i in result.word_ids]
+
+        assert "is" not in words
+
+    def test_skip_copulas_handles_predicate_nominal(self):
+        """Should skip 'is' in predicate nominal constructions."""
+        tokenizer = Tokenizer()
+        parser = DependencyParser()
+        selector = SeedSelector()
+
+        text = "John is a doctor."
+        tokens = tokenizer.tokenize(text)
+        parsed = parser.parse(tokens)
+
+        john_id = next(t.id for t in parsed if t.text == "John")
+        seed = selector.select_range(parsed, start_id=john_id, end_id=john_id)
+        selector.add_seed(seed)
+
+        extractor = SubgraphExtractor(skip_copulas=True)
+        result = extractor.extract(parsed, selector.seeds, zoom_level=2)
+        words = [parsed[i].text for i in result.word_ids]
+
+        assert "John" in words
+        assert "is" not in words
+        assert "doctor" in words
