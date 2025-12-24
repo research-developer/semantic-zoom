@@ -216,3 +216,94 @@ class TestGrammarCheckResult:
             assert hasattr(error, 'text')
             assert hasattr(error, 'suggestion')
             assert hasattr(error, 'message')
+
+
+class TestPhonologicalArticleCheck:
+    """Test phonological a/an checking using CMU pronouncing dictionary."""
+
+    def test_a_before_vowel_sound_hour(self):
+        """Test 'a hour' detected as error (hour has vowel sound)."""
+        from semantic_zoom.phase7.grammar_check import check_grammar
+
+        text = "I waited for a hour."
+        result = check_grammar(text)
+
+        # Should detect "a hour" -> "an hour" (silent h, vowel sound)
+        article_errors = [e for e in result.errors if e.error_type == "ARTICLE"]
+        assert len(article_errors) == 1
+        assert article_errors[0].suggestion == "an"
+        assert "hour" in article_errors[0].message
+
+    def test_a_before_vowel_sound_honest(self):
+        """Test 'a honest' detected as error (honest has vowel sound)."""
+        from semantic_zoom.phase7.grammar_check import check_grammar
+
+        text = "He is a honest man."
+        result = check_grammar(text)
+
+        article_errors = [e for e in result.errors if e.error_type == "ARTICLE"]
+        assert len(article_errors) == 1
+        assert article_errors[0].suggestion == "an"
+
+    def test_an_before_consonant_sound_university(self):
+        """Test 'an university' detected as error (university has /j/ consonant)."""
+        from semantic_zoom.phase7.grammar_check import check_grammar
+
+        text = "She attends an university."
+        result = check_grammar(text)
+
+        article_errors = [e for e in result.errors if e.error_type == "ARTICLE"]
+        assert len(article_errors) == 1
+        assert article_errors[0].suggestion == "a"
+        assert "university" in article_errors[0].message
+
+    def test_an_before_consonant_sound_european(self):
+        """Test 'an European' detected as error (European has /j/ consonant)."""
+        from semantic_zoom.phase7.grammar_check import check_grammar
+
+        text = "He is an European citizen."
+        result = check_grammar(text)
+
+        article_errors = [e for e in result.errors if e.error_type == "ARTICLE"]
+        assert len(article_errors) == 1
+        assert article_errors[0].suggestion == "a"
+
+    def test_correct_an_before_apple(self):
+        """Test 'an apple' is not flagged (correct usage)."""
+        from semantic_zoom.phase7.grammar_check import check_grammar
+
+        text = "I ate an apple."
+        result = check_grammar(text)
+
+        article_errors = [e for e in result.errors if e.error_type == "ARTICLE"]
+        assert len(article_errors) == 0
+
+    def test_correct_a_before_dog(self):
+        """Test 'a dog' is not flagged (correct usage)."""
+        from semantic_zoom.phase7.grammar_check import check_grammar
+
+        text = "I saw a dog."
+        result = check_grammar(text)
+
+        article_errors = [e for e in result.errors if e.error_type == "ARTICLE"]
+        assert len(article_errors) == 0
+
+    def test_correct_a_before_uniform(self):
+        """Test 'a uniform' is not flagged (consonant /j/ sound)."""
+        from semantic_zoom.phase7.grammar_check import check_grammar
+
+        text = "She wears a uniform."
+        result = check_grammar(text)
+
+        article_errors = [e for e in result.errors if e.error_type == "ARTICLE"]
+        assert len(article_errors) == 0
+
+    def test_correct_an_before_hour(self):
+        """Test 'an hour' is not flagged (correct usage)."""
+        from semantic_zoom.phase7.grammar_check import check_grammar
+
+        text = "I waited for an hour."
+        result = check_grammar(text)
+
+        article_errors = [e for e in result.errors if e.error_type == "ARTICLE"]
+        assert len(article_errors) == 0

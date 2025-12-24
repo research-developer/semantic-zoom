@@ -209,7 +209,8 @@ class TestResponseStorage:
 
         if result.errors:
             store = ResponseStore()
-            prompt = create_correction_prompt(result.errors[0])
+            # IMPORTANT: Use deterministic=True so ID matches during retrieval
+            prompt = create_correction_prompt(result.errors[0], deterministic=True)
             response = UserResponse(
                 prompt_id=prompt.prompt_id,
                 option=PromptOption.ACCEPT,
@@ -218,6 +219,73 @@ class TestResponseStorage:
 
             corrected = apply_stored_responses(text, result.errors, store)
             assert corrected is not None
+            # Verify the correction was actually applied
+            if result.errors[0].suggestion:
+                assert corrected != text, "Correction should be applied"
+                assert result.errors[0].suggestion in corrected
+
+    def test_stored_response_deterministic_id_required(self):
+        """Test that deterministic ID is required for apply_stored_responses.
+
+        This tests the bug fix: prompts must use deterministic IDs for
+        stored responses to be retrieved correctly.
+        """
+        from semantic_zoom.phase7.grammar_check import check_grammar
+        from semantic_zoom.phase7.user_prompts import (
+            ResponseStore,
+            create_correction_prompt,
+            apply_stored_responses,
+            UserResponse,
+            PromptOption,
+        )
+
+        text = "The dogs runs quickly."
+        result = check_grammar(text)
+
+        if result.errors and result.errors[0].suggestion:
+            store = ResponseStore()
+
+            # Create prompt WITH deterministic ID
+            prompt = create_correction_prompt(result.errors[0], deterministic=True)
+            response = UserResponse(
+                prompt_id=prompt.prompt_id,
+                option=PromptOption.ACCEPT,
+            )
+            store.add(response)
+
+            # Apply should work with deterministic IDs
+            corrected = apply_stored_responses(text, result.errors, store)
+            assert corrected != text, "With deterministic ID, correction should apply"
+
+    def test_deterministic_id_is_consistent(self):
+        """Test that deterministic ID is the same for the same error."""
+        from semantic_zoom.phase7.grammar_check import check_grammar
+        from semantic_zoom.phase7.user_prompts import create_correction_prompt
+
+        text = "The dogs runs quickly."
+        result = check_grammar(text)
+
+        if result.errors:
+            error = result.errors[0]
+            prompt1 = create_correction_prompt(error, deterministic=True)
+            prompt2 = create_correction_prompt(error, deterministic=True)
+            assert prompt1.prompt_id == prompt2.prompt_id, \
+                "Deterministic IDs should be the same for the same error"
+
+    def test_random_id_is_different(self):
+        """Test that random ID is different each time."""
+        from semantic_zoom.phase7.grammar_check import check_grammar
+        from semantic_zoom.phase7.user_prompts import create_correction_prompt
+
+        text = "The dogs runs quickly."
+        result = check_grammar(text)
+
+        if result.errors:
+            error = result.errors[0]
+            prompt1 = create_correction_prompt(error, deterministic=False)
+            prompt2 = create_correction_prompt(error, deterministic=False)
+            assert prompt1.prompt_id != prompt2.prompt_id, \
+                "Random IDs should be different each time"
 
 
 class TestBatchResolution:

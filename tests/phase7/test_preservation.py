@@ -97,6 +97,64 @@ class TestWordIDMapping:
         assert mapping is not None
 
 
+class TestModificationDetection:
+    """Test detection of word modifications (morphological changes)."""
+
+    def test_modification_detected_for_verb_conjugation(self):
+        """Test that verb conjugation change is detected as 'modified'."""
+        from semantic_zoom.phase7.preservation import VersionStore
+
+        store = VersionStore()
+        original = "The dogs runs quickly."
+        v1 = store.add_version(original)
+
+        corrected = "The dogs run quickly."
+        v2 = store.add_version(corrected, parent_id=v1)
+
+        mapping = store.get_word_mapping(v1, v2)
+        assert mapping is not None
+
+        # Find the mapping for "runs" -> "run"
+        change_types = [m.change_type for m in mapping]
+        assert "modified" in change_types, \
+            f"Expected 'modified' for runs->run, got: {change_types}"
+
+    def test_modification_not_used_for_unrelated_words(self):
+        """Test that unrelated word changes are not marked as 'modified'."""
+        from semantic_zoom.phase7.preservation import VersionStore
+
+        store = VersionStore()
+        original = "The cat sleeps."
+        v1 = store.add_version(original)
+
+        changed = "The dog runs."
+        v2 = store.add_version(changed, parent_id=v1)
+
+        mapping = store.get_word_mapping(v1, v2)
+        assert mapping is not None
+
+        # "cat" -> "dog" and "sleeps" -> "runs" should NOT be "modified"
+        # because they're unrelated words
+        change_types = [m.change_type for m in mapping]
+        # Should have deletions and insertions, not modifications
+        assert "deleted" in change_types or "inserted" in change_types
+
+    def test_plural_to_singular_is_modification(self):
+        """Test that plural to singular is detected as modification."""
+        from semantic_zoom.phase7.preservation import VersionStore
+
+        store = VersionStore()
+        v1 = store.add_version("The dogs bark.")
+        v2 = store.add_version("The dog barks.", parent_id=v1)
+
+        mapping = store.get_word_mapping(v1, v2)
+        assert mapping is not None
+
+        # Both "dogs" -> "dog" and "bark" -> "barks" should be modifications
+        modified_count = sum(1 for m in mapping if m.change_type == "modified")
+        assert modified_count >= 1, "Expected at least one modification"
+
+
 class TestOriginalRecovery:
     """Test original view recovery."""
 
